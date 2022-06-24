@@ -10,10 +10,11 @@
 # course be configured to fit any theme.
 
 # Requirements:
-#  Xorg: dunst & dunstify
+#  Xorg: dunst & dunstify (dunst bias for this fork)
 #  Wayland: notify-send and mako
-#  ttf-font-awesome for the icons
-#  pulseaudio (if you want support for others, feel free to contribute)
+#  ttf-font-awesome for the icons (or equiv nerd font)
+#  pulseaudio (edits on this fork made mostly for pipewire)
+#  pamixer
 
 usage="Usage: $(basename "$0") MODE ACTION
 Modify volume or brightness and indicate level as
@@ -31,6 +32,25 @@ Arguments:
       Decrease:   down|dec|d
       Mute:       mute|m"
 
+#function moved up here because used for dunst icons
+function get_volume {
+	pamixer --get-volume
+	#more reliable and simpler, (makes pamixer a dependency)
+}
+
+#new function to get volume level specific icons
+function get_icon {
+	if (($1>=65))
+	then
+		echo "volume-level-high"
+	elif (($1>=30))
+	then
+		echo "volume-level-medium"
+	else
+		echo "volume-level-low"
+	fi
+}
+
 MODE=-1   # 1 = volume, 2 = brightness
 ACTION=-1 # 1 = inc, 2 = down, 3 = mute
 ICON=
@@ -38,7 +58,7 @@ ICON=
 case $1 in
 	v*)
 		MODE=1
-		ICON=
+		ICON=$(get_icon `get_volume`)
 		case $2 in
 			up|u|inc|i)
 				ACTION=1
@@ -56,7 +76,7 @@ case $1 in
 		;;
 	b*)
 		MODE=2
-		ICON=
+		ICON=xfpm-brightness-lcd
 		case $2 in
 			up|u|inc|i)
 				ACTION=1
@@ -89,10 +109,6 @@ if ! flock -x -w $TIMEOUT $FD; then
 	exit 1
 fi
 
-function get_volume {
-	amixer get Master | grep '%' | head -n 1 | cut -d '[' -f 2 | cut -d '%' -f 1
-}
-
 function is_mute {
 	amixer get Master | grep '%' | grep -oE '[^ ]+$' | grep off > /dev/null
 }
@@ -117,14 +133,15 @@ function repChar {
 function send_notification {
 	# If mako is running we dismiss the previous notification and use
 	# notify-send, since mako will draw a progress bar by itself
+	# mako now hardcoded icons, maybe will support with transitional icons later
 	if pgrep mako &>/dev/null ; then
 		# We replace the existing notification using the synchronous hint merged in
 		# https://github.com/emersion/mako/pull/270 (Mako version 1.6)
 		# Previously, we worked around this by calling `makoctl dismiss` here.
 		if [ $MODE == 1 ] && is_mute ; then
-			notify-send " Muted" -h int:value:$1 -t 5000 -h string:x-canonical-private-synchronous:barify-$MODE
+			notify-send "婢 Muted " -h int:value:$1 -t 5000 -h string:x-canonical-private-synchronous:barify-$MODE
 		else
-			notify-send "$ICON $1%" -h int:value:$1 -t 5000 -h string:x-canonical-private-synchronous:barify-$MODE
+			notify-send "墳 $1%" -h int:value:$1 -t 5000 -h string:x-canonical-private-synchronous:barify-$MODE
 		fi
 		return
 	fi
@@ -135,7 +152,7 @@ function send_notification {
 	# normal screens.
 	if pgrep dunst &>/dev/null ; then
 		if [ $MODE == 1 ] && is_mute ; then
-			dunstify -i NUL -r 2593 -u normal "  Muted"
+			dunstify -i volume-level-none -r 2593 -u normal " Muted"
 		else
 			length=25 # Number characters for the bar
 			div=$((100 / $length))
@@ -144,7 +161,7 @@ function send_notification {
 			right=$(($total - $left))
 			bar=$(repChar $left "█")$(repChar $right "░")
 
-			dunstify -i NUL -r 2593 -u normal "$ICON $bar"
+			dunstify -i $ICON -r 2593 -u normal " $bar"
 		fi
 		return
 	fi
