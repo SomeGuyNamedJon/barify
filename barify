@@ -40,14 +40,19 @@ function get_volume {
 
 #new function to get volume level specific icons
 function get_icon {
-	if (($1>=65))
+	if (($1<=0))
 	then
-		echo "volume-level-high"
-	elif (($1>=30))
-	then
-		echo "volume-level-medium"
+		echo "volume-level-none"
 	else
-		echo "volume-level-low"
+		if (($1>=80))
+		then
+			echo "volume-level-high"
+		elif (($1>=30))
+		then
+			echo "volume-level-medium"
+		else
+			echo "volume-level-low"
+		fi
 	fi
 }
 
